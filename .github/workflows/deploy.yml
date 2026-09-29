@@ -1,0 +1,70 @@
+name: Deploy to Ubuntu Server
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v3
+
+      - name: 📁 Deploy to Ubuntu Server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: 57.129.5.165
+          username: root
+          password: ${{ secrets.SERVER_PASSWORD }}
+          port: 22
+          script: |
+            # Navigate to the web directory
+            cd /var/www/html
+            
+            # Create a backup of current files (optional)
+            tar -czf backup-$(date +%Y%m%d-%H%M%S).tar.gz . 2>/dev/null || true
+            
+            # Remove old files (keeping hidden files like .htaccess)
+            find . -type f ! -name '.*' -delete
+            find . -type d -empty -delete
+            
+            # Create a temporary directory for new files
+            mkdir -p /tmp/portfolio-deploy
+
+      - name: 📤 Upload files to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: 57.129.5.165
+          username: root
+          password: ${{ secrets.SERVER_PASSWORD }}
+          port: 22
+          source: "."
+          target: "/tmp/portfolio-deploy"
+          strip_components: 0
+
+      - name: 🚀 Move files to web directory
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: 57.129.5.165
+          username: root
+          password: ${{ secrets.SERVER_PASSWORD }}
+          port: 22
+          script: |
+            # Move new files to web directory
+            cp -r /tmp/portfolio-deploy/* /var/www/html/
+            
+            # Set proper permissions
+            chown -R www-data:www-data /var/www/html
+            chmod -R 755 /var/www/html
+            
+            # Clean up temporary directory
+            rm -rf /tmp/portfolio-deploy
+            
+            # Restart Nginx to ensure changes take effect
+            systemctl reload nginx
+            
+                         echo "✅ Deployment completed successfully!"
+             echo "🌐 Website should be available at: https://ahouadsalim.com"
+
+
